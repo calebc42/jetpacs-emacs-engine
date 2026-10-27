@@ -1,0 +1,77 @@
+# Builds the Jetpacs Emacs engine AAR on a clean runner, the way README.md
+# describes: the pristine, signature-verified Emacs release tarball named in
+# versions.env, Emacs's own configure and make per ABI, tools/harvest.sh and
+# tools/package-aar.sh. No Emacs source lives in this repository and no patch
+# is applied anywhere (README.md, "Policy").
+#
+# A tag engine-<EMACS_VERSION>+<ENGINE_BUILD>, which must match versions.env,
+# publishes a GitHub release; workflow_dispatch builds and keeps the workflow
+# artifacts only. The first asset wins (tools/publish-release.sh): a release
+# the developer published from a local dist/ with the very AAR the Companion's
+# gradle/engine.lock pins keeps that AAR, because assets/build_info carries
+# the build time and a rebuild never reproduces the pinned digest. Release
+# assets spell the "+" of the engine id as "-", since GitHub rewrites "+" in
+# asset names; the bytes, and so the SHA-256, are the same.
+name: engine
+
+on:
+  push:
+    tags: ["engine-*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: engine AAR (arm64-v8a + x86_64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      # Emacs's Android build compiles its Java with -source 7, which JDK 20+
+      # rejects; 17 also satisfies the AGP 9 project that packages the AAR.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            autoconf texinfo gzip xz-utils python3 curl gnupg
+      - name: Android SDK components named by versions.env
+        run: |
+          . ./versions.env
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$sdkmanager" --install "ndk;$ANDROID_NDK_VERSION" \
+            "platforms;$ANDROID_PLATFORM" "build-tools;$ANDROID_BUILD_TOOLS"
+      - name: The tag names the engine versions.env describes
+        if: github.ref_type == 'tag'
+        run: |
+          . ./versions.env
+          expected="engine-$EMACS_VERSION+$ENGINE_BUILD"
+          [ "$GITHUB_REF_NAME" = "$expected" ] \
+            || { echo "tag $GITHUB_REF_NAME does not match versions.env ($expected)"; exit 1; }
+      - name: Fetch and verify the tarball, build both ABIs, harvest, package
+        run: |
+          export JETPACS_ENGINE_JDK="$JAVA_HOME"
+          source tools/env.sh
+          engine_check_toolchain
+          tools/build-all.sh
+      - name: Stage the release-named assets
+        run: tools/publish-release.sh stage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jetpacs-emacs-engine
+          path: |
+            dist/release/*
+            work/logs/*.log
+          retention-days: 30
+      - name: Fill the release with the assets it lacks
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: tools/publish-release.sh fill "$GITHUB_REF_NAME"

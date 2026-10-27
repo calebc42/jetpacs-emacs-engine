@@ -4,6 +4,8 @@
 # is built from an untouched extraction of it (see README.md, "Policy").
 set -euo pipefail
 . "$(dirname "$0")/env.sh"
+# A fresh clone has no upstream/ yet (its contents are ignored by git).
+mkdir -p "$ENGINE_ROOT/upstream"
 cd "$ENGINE_ROOT/upstream"
 
 if [ ! -e "$EMACS_TARBALL" ]; then

@@ -26,6 +26,8 @@ own build glue; nothing is sent upstream.
 | `tools/harvest.sh` | Collect `dist/engine-<version>+<build>/` (lib, assets, java, res, proguard.conf, reference APKs, `MANIFEST.json`); checks 16 KB page alignment |
 | `tools/package-aar.sh` | Build `dist/jetpacs-emacs-engine-<version>+<build>.aar` + `.sha256` from `dist/current` |
 | `tools/build-all.sh` | The whole pipeline; logs under `work/logs/` |
+| `tools/publish-release.sh` | Release-named copies under `dist/release/` (`stage`), the developer's publication of a release (`publish`), CI's fill of a release's missing assets (`fill`) |
+| `.github/workflows/engine.yml` | Builds both ABIs on a clean runner for every `engine-*` tag (publishing the release) and on manual dispatch |
 | `deps/sqlite` | SQLite 3.44.4 as AOSP's `platform/external/sqlite` dist (public domain) with the `Android.mk` Emacs's ndk-build reads; built static into `libemacs.so` for ebp.el's receipts store |
 | `android/` | The Gradle project producing the AAR (AGP 9.2.1, namespace `org.gnu.emacs`, empty manifest, consumer keep rules) |
 
@@ -67,6 +69,36 @@ harvest drops before it rebuilds `directory-tree` with the build's own
 through, so a trimmed tree is simply absent to it. The default drops
 `info`, the Info manuals (21 MB uncompressed), which a headless engine
 never reads. Trimming happens only here, never in the Companion.
+
+## Releases and CI
+
+`.github/workflows/engine.yml` builds both ABIs on a clean `ubuntu-latest`
+runner (JDK 17, the SDK components `versions.env` names installed through
+`sdkmanager`, the tarball fetched and verified there) for every tag
+`engine-<version>+<build>`, which must match `versions.env`, and on manual
+dispatch. A tag publishes a GitHub release.
+
+Release assets spell the `+` as `-` (`jetpacs-emacs-engine-31.1-2.aar`)
+because GitHub rewrites `+` in asset names; the bytes are the same, so the
+SHA-256 the Companion pins holds under either name.
+
+The first asset wins. `assets/build_info` inside the AAR carries the build
+time, so a rebuild never reproduces a pinned digest, and the AAR on the
+release must be the one the Companion pins:
+
+1. `tools/build-all.sh`; pin `EMACS_VERSION+ENGINE_BUILD` and the
+   `.sha256` in `jetpacs-poc/companion/gradle/engine.lock` and run
+   `:app:verifyBundledEngine` there;
+2. push the commit, then `tools/publish-release.sh publish` creates the
+   release and its tag from that commit with the local AAR;
+3. the workflow runs on the tag, rebuilds as evidence, keeps its own output
+   as a workflow artifact and adds only assets the release lacks.
+
+A bare tag push without step 2 lets the workflow provide CI-built assets,
+which the Companion then pins. Never upload a second AAR to a release the
+Companion already pins. The Companion's CI downloads the pinned asset with
+`jetpacs-poc/tools/fetch-engine-aar.sh` and checks the digest against the
+lock before every bundled build.
 
 ## Versioning
 
