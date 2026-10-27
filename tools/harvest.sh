@@ -25,6 +25,15 @@ for abi in $ENGINE_ABIS; do
   if [ -z "$first" ]; then
     first="$abi"
     cp -a "$staging/assets" "$dist/assets"
+    # Trim what a display-less engine never reads, then rebuild the index
+    # Emacs's asset filesystem stats through, with the build's own tool.
+    if [ -n "${ENGINE_TRIM_ASSETS:-}" ]; then
+      for entry in $ENGINE_TRIM_ASSETS; do
+        rm -rf "${dist:?}/assets/${entry:?}"
+      done
+      "$tree/lib-src/asset-directory-tool" "$dist/assets" "$dist/assets/directory-tree"
+      echo "harvest: trimmed assets ($ENGINE_TRIM_ASSETS) and rebuilt directory-tree"
+    fi
     mkdir -p "$dist/java/org/gnu/emacs"
     for f in "$tree"/java/org/gnu/emacs/*.java; do
       case "$(basename "$f")" in R.java) ;; *) cp -a "$f" "$dist/java/org/gnu/emacs/" ;; esac
@@ -53,7 +62,7 @@ done
 for abi in $ENGINE_ABIS; do
   [ "$abi" = "$first" ] && continue
   other="$ENGINE_ROOT/work/$abi/emacs-$EMACS_VERSION/java/install_temp/assets"
-  if ! diff -rq --exclude=build_info "$dist/assets" "$other" >/dev/null; then
+  if ! diff -rq --exclude=build_info --exclude=directory-tree $(for e in ${ENGINE_TRIM_ASSETS:-}; do printf -- "--exclude=%s " "$e"; done) "$dist/assets" "$other" >/dev/null; then
     echo "harvest: WARNING assets differ between $first and $abi:" >&2
     diff -rq --exclude=build_info "$dist/assets" "$other" | head -20 >&2
   fi
@@ -97,6 +106,7 @@ manifest = {
   "deps": {"sqlite": {"version": "3.44.4 (AOSP platform/external/sqlite dist, fdsan patch)", "module": "libsqlite_static_minimal", "sqlite3_c_sha256": sha256(os.path.join(root, "deps", "sqlite", "sqlite-autoconf-3440400", "sqlite3.c"))}},
   "abis": abis,
   "assets": tree_digest(os.path.join(dist, "assets"), exclude=("build_info",)),
+  "assets_trimmed": env.get("ENGINE_TRIM_ASSETS", "").split(),
   "assets_first_abi": env["ENGINE_FIRST_ABI"],
   "java": tree_digest(os.path.join(dist, "java")), "res": tree_digest(os.path.join(dist, "res")),
   "proguard_conf_sha256": sha256(os.path.join(dist, "proguard.conf")),

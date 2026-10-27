@@ -59,6 +59,15 @@ compiles the host tools and byte-compiles all of Lisp before cross-compiling
 configure line per ABI, the feature list from `config.h.android`, the
 SHA-256 of every shared object and of the asset, Java and resource trees.
 
+## Trimming
+
+`ENGINE_TRIM_ASSETS` in `versions.env` names top-level `assets/` entries the
+harvest drops before it rebuilds `directory-tree` with the build's own
+`asset-directory-tool`; the index is what Emacs's asset filesystem stats
+through, so a trimmed tree is simply absent to it. The default drops
+`info`, the Info manuals (21 MB uncompressed), which a headless engine
+never reads. Trimming happens only here, never in the Companion.
+
 ## Versioning
 
 An engine is identified as `EMACS_VERSION+ENGINE_BUILD`, e.g. `31.1+1`.
