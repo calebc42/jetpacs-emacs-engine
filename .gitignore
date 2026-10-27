@@ -1,0 +1,11 @@
+# Build trees (pristine extractions of the tarball) and large outputs.
+work/
+dist/
+upstream/*.tar.xz
+upstream/*.tar.xz.sig
+upstream/gnu-keyring.gpg
+android/.gradle/
+android/build/
+android/engine/build/
+android/local.properties
+android/.kotlin/

@@ -1,0 +1,6 @@
+[versions]
+# Same line as the Jetpacs Companion (companion/gradle/libs.versions.toml).
+agp = "9.2.1"
+
+[plugins]
+android-library = { id = "com.android.library", version.ref = "agp" }

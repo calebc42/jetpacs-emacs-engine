@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Deliberately empty. Emacs's own manifest (java/AndroidManifest.xml.in)
+     declares its activities, a DocumentsProvider over the files directory
+     and some seventy permissions; none of that belongs in a Jetpacs APK.
+     The Companion's bundled flavor declares the one service that runs the
+     engine. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
