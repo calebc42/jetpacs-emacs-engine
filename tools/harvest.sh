@@ -98,12 +98,19 @@ for abi in env["ENGINE_ABIS"].split():
                  "features": feats[0].split('"')[1] if feats else None,
                  "libemacs_sha256": libs.get("libemacs.so"), "libs": libs,
                  "page_align_16k": True, "build_seconds": int(seconds) if seconds else None}
+# The TLS ports must have reached every ABI (configure fails without them;
+# this guards a reused work tree configured before they were added).
+for abi, info in abis.items():
+    if env.get("ENGINE_TLS_PORTS") and "GNUTLS" not in (info["features"] or "").split():
+        sys.exit(f"harvest: {abi} was built without GNUTLS: {info['features']}")
 manifest = {
   "engine": f"{ver}+{env['ENGINE_BUILD']}", "emacs_version": ver, "engine_build": int(env["ENGINE_BUILD"]),
   "tarball": {"name": env["EMACS_TARBALL"], "sha256": env["EMACS_TARBALL_SHA256"], "url": env["EMACS_TARBALL_URL"], "signing_key": env["EMACS_SIGNING_KEY"]},
   "toolchain": {"ndk": env["ANDROID_NDK_VERSION"], "android_api": int(env["ANDROID_API"]), "platform": env["ANDROID_PLATFORM"], "build_tools": env["ANDROID_BUILD_TOOLS"],
                 "javac": subprocess.run([os.path.join(env["JAVA_HOME"], "bin", "javac"), "-version"], capture_output=True, text=True).stdout.strip() or subprocess.run([os.path.join(env["JAVA_HOME"], "bin", "javac"), "-version"], capture_output=True, text=True).stderr.strip()},
-  "deps": {"sqlite": {"version": "3.44.4 (AOSP platform/external/sqlite dist, fdsan patch)", "module": "libsqlite_static_minimal", "sqlite3_c_sha256": sha256(os.path.join(root, "deps", "sqlite", "sqlite-autoconf-3440400", "sqlite3.c"))}},
+  "deps": {"sqlite": {"version": "3.44.4 (AOSP platform/external/sqlite dist, fdsan patch)", "module": "libsqlite_static_minimal", "sqlite3_c_sha256": sha256(os.path.join(root, "deps", "sqlite", "sqlite-autoconf-3440400", "sqlite3.c"))},
+           **{pin.split("=")[0]: {"sha256": pin.split("=")[1], "url": env["ENGINE_PORTS_URL"] + "/" + pin.split("=")[0]}
+              for pin in env.get("ENGINE_TLS_PORTS", "").split()}},
   "abis": abis,
   "assets": tree_digest(os.path.join(dist, "assets"), exclude=("build_info",)),
   "assets_trimmed": env.get("ENGINE_TRIM_ASSETS", "").split(),

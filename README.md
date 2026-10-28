@@ -15,6 +15,19 @@ SHA-256 and the GPG signature, extracts it untouched under `work/`, and runs
 Emacs's own `configure` and `make`. Everything committed here is Jetpacs's
 own build glue; nothing is sent upstream.
 
+TLS comes from the ndk-build ports of GnuTLS 3.8.5, nettle 3.8, GMP 6.3.0,
+libtasn1 4.19.0 and p11-kit 0.24.1 that Emacs's `java/INSTALL` (section
+GNUTLS) names, published by the Android port's maintainer at
+<https://sourceforge.net/projects/android-ports-for-gnu-emacs>. They are
+pinned by SHA-256 in `versions.env`, extracted untouched beside the Emacs
+tree, and built by Emacs's own ndk-build support. GnuTLS and libtasn1 are
+LGPL-2.1+, nettle and GMP LGPL-3+ or GPL-2+, p11-kit BSD-3-Clause: all
+compatible with the GPL-3.0+ engine. Whoever distributes the engine must
+also offer these tarballs as corresponding source; `MANIFEST.json` names
+each with its digest and URL. Engine 31.1+3 and later verify server
+certificates against the device's system store
+(`/system/etc/security/cacerts`, in Emacs's default `gnutls-trustfiles`).
+
 ## Layout
 
 | Path | Purpose |
@@ -29,6 +42,7 @@ own build glue; nothing is sent upstream.
 | `tools/publish-release.sh` | Release-named copies under `dist/release/` (`stage`), the developer's publication of a release (`publish`), CI's fill of a release's missing assets (`fill`) |
 | `.github/workflows/engine.yml` | Builds both ABIs on a clean runner for every `engine-*` tag (publishing the release) and on manual dispatch |
 | `deps/sqlite` | SQLite 3.44.4 as AOSP's `platform/external/sqlite` dist (public domain) with the `Android.mk` Emacs's ndk-build reads; built static into `libemacs.so` for ebp.el's receipts store |
+| `tools/fetch-deps.sh` | Download and verify (sha256) the ndk-build ports of GnuTLS and its dependencies pinned in `versions.env` into `upstream/deps/` |
 | `android/` | The Gradle project producing the AAR (AGP 9.2.1, namespace `org.gnu.emacs`, empty manifest, consumer keep rules) |
 
 ## Build

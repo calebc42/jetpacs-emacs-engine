@@ -4,6 +4,7 @@ dist/
 upstream/*.tar.xz
 upstream/*.tar.xz.sig
 upstream/gnu-keyring.gpg
+upstream/deps/
 android/.gradle/
 android/build/
 android/engine/build/

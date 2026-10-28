@@ -14,6 +14,7 @@ abi="${1:?usage: build-abi.sh ABI [--keep]}"; keep="${2:-}"
 cc="$(engine_cc_for_abi "$abi")"
 engine_check_toolchain
 [ -e "$ENGINE_ROOT/upstream/$EMACS_TARBALL" ] || "$ENGINE_ROOT/tools/fetch-upstream.sh"
+"$ENGINE_ROOT/tools/fetch-deps.sh"
 
 work="$ENGINE_ROOT/work/$abi"
 tree="$work/emacs-$EMACS_VERSION"
@@ -21,7 +22,15 @@ if [ "$keep" != "--keep" ] || [ ! -d "$tree" ]; then
   rm -rf "$work"; mkdir -p "$work"
   echo "build-abi: extracting $EMACS_TARBALL into $work"
   tar -xJf "$ENGINE_ROOT/upstream/$EMACS_TARBALL" -C "$work"
+  # The GnuTLS ports, unmodified, one directory each (versions.env).
+  mkdir -p "$work/ports"
+  for pin in $ENGINE_TLS_PORTS; do
+    tar -xzf "$ENGINE_ROOT/upstream/deps/${pin%%=*}" -C "$work/ports"
+  done
 fi
+# Every ndk-build module Emacs builds with: SQLite and the TLS ports.
+ndk_path="$ENGINE_ROOT/deps/sqlite"
+for port in "$work"/ports/*/; do ndk_path="$ndk_path ${port%/}"; done
 [ -f "$tree/configure" ] || { echo "build-abi: $tree has no configure script" >&2; exit 1; }
 
 cd "$tree"
@@ -35,14 +44,14 @@ if [ ! -f src/config.h.android ]; then
   {
     printf '%q ' env "LDFLAGS=$ENGINE_LDFLAGS" "LOADERFLAGS=$ENGINE_LDFLAGS" ./configure "--with-android=$EMACS_ANDROID_JAR" "ANDROID_CC=$cc" \
       "SDK_BUILD_TOOLS=$EMACS_SDK_BUILD_TOOLS" "ANDROID_CFLAGS=$ENGINE_ANDROID_CFLAGS" \
-      "--with-ndk-path=$ENGINE_ROOT/deps/sqlite" $ENGINE_CONFIGURE_EXTRA
+      "--with-ndk-path=$ndk_path" $ENGINE_CONFIGURE_EXTRA
     echo
   } > "$work/configure.cmd"
   echo "build-abi: $(cat "$work/configure.cmd")"
   # shellcheck disable=SC2086
   ./configure "--with-android=$EMACS_ANDROID_JAR" "ANDROID_CC=$cc" \
     "SDK_BUILD_TOOLS=$EMACS_SDK_BUILD_TOOLS" "ANDROID_CFLAGS=$ENGINE_ANDROID_CFLAGS" \
-    "--with-ndk-path=$ENGINE_ROOT/deps/sqlite" $ENGINE_CONFIGURE_EXTRA
+    "--with-ndk-path=$ndk_path" $ENGINE_CONFIGURE_EXTRA
 fi
 echo "build-abi: make all -j$jobs"
 make all -j"$jobs"
