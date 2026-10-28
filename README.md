@@ -24,7 +24,8 @@ tree, and built by Emacs's own ndk-build support. GnuTLS and libtasn1 are
 LGPL-2.1+, nettle and GMP LGPL-3+ or GPL-2+, p11-kit BSD-3-Clause: all
 compatible with the GPL-3.0+ engine. Whoever distributes the engine must
 also offer these tarballs as corresponding source; `MANIFEST.json` names
-each with its digest and URL. Engine 31.1+3 and later verify server
+each with its digest and URL, and every release of this repository carries
+them, with the Emacs tarball and its signature, beside the AAR. Engine 31.1+3 and later verify server
 certificates against the device's system store
 (`/system/etc/security/cacerts`, in Emacs's default `gnutls-trustfiles`).
 
@@ -104,7 +105,8 @@ release must be the one the Companion pins:
    `.sha256` in `jetpacs-poc/companion/gradle/engine.lock` and run
    `:app:verifyBundledEngine` there;
 2. push the commit, then `tools/publish-release.sh publish` creates the
-   release and its tag from that commit with the local AAR;
+   release and its tag from that commit with the local AAR, its manifest
+   and the corresponding source;
 3. the workflow runs on the tag, rebuilds as evidence, keeps its own output
    as a workflow artifact and adds only assets the release lacks.
 

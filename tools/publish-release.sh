@@ -3,7 +3,8 @@
 # release of this repository.
 #
 #   tools/publish-release.sh stage          dist/release/: the AAR, its .sha256,
-#                                           MANIFEST.json and NOTES.md under release names
+#                                           MANIFEST.json and NOTES.md under release names,
+#                                           and the corresponding source
 #   tools/publish-release.sh publish [SHA]  developer path: create release engine-<id>
 #                                           (and its tag, on SHA, default the local HEAD,
 #                                           which must be pushed) from this dist/;
@@ -25,6 +26,13 @@
 # `publish` lets `fill` provide CI-built assets, which the Companion pins
 # afterwards. Never upload a second AAR to a release the Companion already
 # pins.
+#
+# Every release also carries the corresponding source of what the AAR
+# contains (README.md, "Policy"): the Emacs tarball with its signature and
+# each GnuTLS port, unmodified and checked against versions.env, so the
+# release offers it at the same place as the binaries and never depends on
+# the upstream hosts staying up. SQLite and the build glue are this
+# repository at the release tag.
 set -euo pipefail
 . "$(dirname "$0")/env.sh"
 id="$EMACS_VERSION+$ENGINE_BUILD"
@@ -39,9 +47,10 @@ die() { echo "publish-release: $*" >&2; exit 1; }
 
 notes() {
   python3 -I - "$manifest" "$release/jetpacs-emacs-engine-$rid.aar.sha256" \
-    "$id" "$EMACS_VERSION" "$EMACS_TARBALL" "$EMACS_TARBALL_SHA256" "$EMACS_SIGNING_KEY" <<'PY'
+    "$id" "$EMACS_VERSION" "$EMACS_TARBALL" "$EMACS_TARBALL_SHA256" "$EMACS_SIGNING_KEY" \
+    "$EMACS_TARBALL_URL" <<'PY'
 import json, sys
-manifest, shafile, eid, version, tarball, tarball_sha, key = sys.argv[1:8]
+manifest, shafile, eid, version, tarball, tarball_sha, key, tarball_url = sys.argv[1:9]
 m = json.load(open(manifest))
 aar_sha = open(shafile).read().split()[0]
 rid = eid.replace("+", "-")
@@ -58,7 +67,18 @@ if abis:
     for abi, info in sorted(abis.items()):
         print(f"| {abi} | `{info.get('libemacs_sha256', '?')}` | {info.get('features', '?')} |")
     print()
-for k in ("engine", "trimmed_assets", "asset_files", "assets_bytes"):
+deps = m.get("deps", {})
+print("Corresponding source, attached to this release unmodified:\n")
+print("| Source | SHA-256 | Upstream |\n|---|---|---|")
+print(f"| `{tarball}` (and `.sig`) | `{tarball_sha}` | <{tarball_url}> |")
+for name, info in sorted(deps.items()):
+    if "url" in info:
+        print(f"| `{name}` | `{info['sha256']}` | <{info['url']}> |")
+print()
+if "sqlite" in deps:
+    print(f"SQLite {deps['sqlite'].get('version', '')} and the build glue are this "
+          "repository at the release tag (`deps/sqlite`, `tools/`).\n")
+for k in ("engine", "assets_trimmed"):
     if k in m:
         print(f"- {k}: {m[k]}")
 PY
@@ -72,11 +92,21 @@ stage() {
   cp -f "$aar" "$release/jetpacs-emacs-engine-$rid.aar"
   cp -f "$manifest" "$release/jetpacs-emacs-engine-$rid-MANIFEST.json"
   (cd "$release" && sha256sum "jetpacs-emacs-engine-$rid.aar" > "jetpacs-emacs-engine-$rid.aar.sha256")
+  (cd "$ENGINE_ROOT/upstream" && echo "$EMACS_TARBALL_SHA256  $EMACS_TARBALL" | sha256sum -c -)
+  cp -fL "$ENGINE_ROOT/upstream/$EMACS_TARBALL" "$ENGINE_ROOT/upstream/$EMACS_TARBALL.sig" "$release/"
+  for pin in $ENGINE_TLS_PORTS; do
+    (cd "$ENGINE_ROOT/upstream/deps" && echo "${pin#*=}  ${pin%%=*}" | sha256sum -c -)
+    cp -f "$ENGINE_ROOT/upstream/deps/${pin%%=*}" "$release/"
+  done
   notes > "$release/NOTES.md"
   ls -la "$release"
 }
 
-assets() { printf '%s\n' "$release/jetpacs-emacs-engine-$rid".*; }
+assets() {
+  printf '%s\n' "$release/jetpacs-emacs-engine-$rid".* "$release/jetpacs-emacs-engine-$rid-MANIFEST.json" \
+    "$release/$EMACS_TARBALL" "$release/$EMACS_TARBALL.sig"
+  for pin in $ENGINE_TLS_PORTS; do printf '%s\n' "$release/${pin%%=*}"; done
+}
 
 publish() {
   local target="${1:-$(git -C "$ENGINE_ROOT" rev-parse HEAD)}"
